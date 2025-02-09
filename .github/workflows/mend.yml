@@ -1,4 +1,4 @@
-name: Mend AI
+uname: Mend AI
 
 on: workflow_dispatch
 
@@ -30,7 +30,7 @@ jobs:
         echo Downloading Mend CLI
         curl https://downloads.mend.io/cli/linux_amd64/mend -o /usr/local/bin/mend && chmod +x /usr/local/bin/mend
         echo run Mend scan
-        mend dep -u -s "*//AI//TensorRT-LLM"
+        mend dep -u -s "*//AI//langchain"
         
     - name: 'Upload .mend/logs folder'
       uses: actions/upload-artifact@v4
