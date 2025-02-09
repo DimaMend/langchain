@@ -1,4 +1,4 @@
-uname: Mend AI
+name: Mend AI
 
 on: workflow_dispatch
 
