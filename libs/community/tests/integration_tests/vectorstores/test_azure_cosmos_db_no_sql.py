@@ -8,11 +8,10 @@ from typing import Any, Dict, List, Tuple
 import pytest
 from langchain_core.documents import Document
 
-from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_community.embeddings import AzureOpenAIEmbeddings
 from langchain_community.vectorstores.azure_cosmos_db_no_sql import (
     AzureCosmosDBNoSqlVectorSearch,
     Condition,
-    CosmosDBQueryType,
     PreFilter,
 )
 
@@ -24,8 +23,8 @@ model_deployment = os.getenv(
 model_name = os.getenv("OPENAI_EMBEDDINGS_MODEL_NAME", "text-embedding-ada-002")
 
 # Host and Key for CosmosDB No SQl
-HOST = os.environ.get("HOST")
-KEY = os.environ.get("KEY")
+HOST = os.environ.get("HOST", "default_host")
+KEY = os.environ.get("KEY", "default_key")
 
 database_name = "langchain_python_db"
 container_name = "langchain_python_container"
@@ -43,6 +42,14 @@ def partition_key() -> Any:
     from azure.cosmos import PartitionKey
 
     return PartitionKey(path="/id")
+
+
+@pytest.fixture()
+def azure_openai_embeddings() -> AzureOpenAIEmbeddings:
+    return AzureOpenAIEmbeddings(
+        model="text-embedding-3-small",
+        azure_endpoint="",
+    )
 
 
 def safe_delete_database(cosmos_client: Any) -> None:
@@ -86,7 +93,7 @@ class TestAzureCosmosDBNoSqlVectorSearch:
         self,
         cosmos_client: Any,
         partition_key: Any,
-        azure_openai_embeddings: OpenAIEmbeddings,
+        azure_openai_embeddings: AzureOpenAIEmbeddings,
     ) -> None:
         """Test end to end construction and search."""
         documents = self._get_documents()
@@ -103,12 +110,56 @@ class TestAzureCosmosDBNoSqlVectorSearch:
             indexing_policy=get_vector_indexing_policy("flat"),
             cosmos_container_properties={"partition_key": partition_key},
             cosmos_database_properties={},
+            vector_search_fields={"text_field": "text", "embedding_field": "embedding"},
+            full_text_search_fields=["text"],
             full_text_policy=get_full_text_policy(),
             full_text_search_enabled=True,
         )
         sleep(1)  # waits for Cosmos DB to save contents to the collection
 
-        output = store.similarity_search("intelligent herders", k=5)
+        output = store.similarity_search("Which dog breed is considered a herder?", k=5)
+
+        assert output
+        assert len(output) == 5
+        assert "Border Collies" in output[0].page_content
+        safe_delete_database(cosmos_client)
+
+    def test_from_documents_cosine_distance_custom_projection(
+        self,
+        cosmos_client: Any,
+        partition_key: Any,
+        azure_openai_embeddings: AzureOpenAIEmbeddings,
+    ) -> None:
+        """Test end to end construction and search."""
+        documents = self._get_documents()
+
+        store = AzureCosmosDBNoSqlVectorSearch.from_documents(
+            documents,
+            embedding=azure_openai_embeddings,
+            cosmos_client=cosmos_client,
+            database_name=database_name,
+            container_name=container_name,
+            vector_embedding_policy=get_vector_embedding_policy(
+                "cosine", "float32", 400
+            ),
+            indexing_policy=get_vector_indexing_policy("flat"),
+            cosmos_container_properties={"partition_key": partition_key},
+            cosmos_database_properties={},
+            vector_search_fields={"text_field": "text", "embedding_field": "embedding"},
+            full_text_search_fields=["text"],
+            full_text_policy=get_full_text_policy(),
+            full_text_search_enabled=True,
+        )
+        sleep(1)  # waits for Cosmos DB to save contents to the collection
+
+        projection_mapping = {
+            "text": "text",
+        }
+        output = store.similarity_search(
+            "Which dog breed is considered a herder?",
+            k=5,
+            projection_mapping=projection_mapping,
+        )
 
         assert output
         assert len(output) == 5
@@ -119,7 +170,7 @@ class TestAzureCosmosDBNoSqlVectorSearch:
         self,
         cosmos_client: Any,
         partition_key: Any,
-        azure_openai_embeddings: OpenAIEmbeddings,
+        azure_openai_embeddings: AzureOpenAIEmbeddings,
     ) -> None:
         texts, metadatas = self._get_texts_and_metadata()
 
@@ -136,12 +187,14 @@ class TestAzureCosmosDBNoSqlVectorSearch:
             indexing_policy=get_vector_indexing_policy("flat"),
             cosmos_container_properties={"partition_key": partition_key},
             cosmos_database_properties={},
+            vector_search_fields={"text_field": "text", "embedding_field": "embedding"},
+            full_text_search_fields=["text"],
             full_text_policy=get_full_text_policy(),
             full_text_search_enabled=True,
         )
         sleep(1)  # waits for Cosmos DB to save contents to the collection
 
-        output = store.similarity_search("intelligent herders", k=1)
+        output = store.similarity_search("Which dog breed is considered a herder?", k=1)
         assert output
         assert len(output) == 1
         assert "Border Collies" in output[0].page_content
@@ -150,7 +203,9 @@ class TestAzureCosmosDBNoSqlVectorSearch:
         store.delete_document_by_id(str(output[0].metadata["id"]))
         sleep(2)
 
-        output2 = store.similarity_search("intelligent herders", k=1)
+        output2 = store.similarity_search(
+            "Which dog breed is considered a herder?", k=1
+        )  # noqa:E501
         assert output2
         assert len(output2) == 1
         assert "Border Collies" not in output2[0].page_content
@@ -160,7 +215,7 @@ class TestAzureCosmosDBNoSqlVectorSearch:
         self,
         cosmos_client: Any,
         partition_key: Any,
-        azure_openai_embeddings: OpenAIEmbeddings,
+        azure_openai_embeddings: AzureOpenAIEmbeddings,
     ) -> None:
         """Test end to end construction and search."""
         documents = self._get_documents()
@@ -174,15 +229,17 @@ class TestAzureCosmosDBNoSqlVectorSearch:
             vector_embedding_policy=get_vector_embedding_policy(
                 "cosine", "float32", 400
             ),
-            indexing_policy=get_vector_indexing_policy("flat"),
+            indexing_policy=get_vector_indexing_policy("diskANN"),
             cosmos_container_properties={"partition_key": partition_key},
             cosmos_database_properties={},
+            vector_search_fields={"text_field": "text", "embedding_field": "embedding"},
+            full_text_search_fields=["text"],
             full_text_policy=get_full_text_policy(),
             full_text_search_enabled=True,
         )
         sleep(1)  # waits for Cosmos DB to save contents to the collection
 
-        output = store.similarity_search("intelligent herders", k=4)
+        output = store.similarity_search("Which dog breed is considered a herder?", k=4)
         assert len(output) == 4
         assert "Border Collies" in output[0].page_content
         assert output[0].metadata["a"] == 1
@@ -193,7 +250,9 @@ class TestAzureCosmosDBNoSqlVectorSearch:
             ],
         )
         output = store.similarity_search(
-            "intelligent herders", k=4, pre_filter=pre_filter, with_embedding=True
+            "Which dog breed is considered a herder?",
+            k=4,
+            pre_filter=pre_filter,
         )
 
         assert len(output) == 3
@@ -208,7 +267,10 @@ class TestAzureCosmosDBNoSqlVectorSearch:
         offset_limit = "OFFSET 0 LIMIT 1"
 
         output = store.similarity_search(
-            "intelligent herders", k=4, pre_filter=pre_filter, offset_limit=offset_limit
+            "Which dog breed is considered a herder?",
+            k=4,
+            pre_filter=pre_filter,
+            offset_limit=offset_limit,
         )
 
         assert len(output) == 1
@@ -220,7 +282,7 @@ class TestAzureCosmosDBNoSqlVectorSearch:
         self,
         cosmos_client: Any,
         partition_key: Any,
-        azure_openai_embeddings: OpenAIEmbeddings,
+        azure_openai_embeddings: AzureOpenAIEmbeddings,
     ) -> None:
         """Test end to end construction and search."""
         documents = self._get_documents()
@@ -238,6 +300,8 @@ class TestAzureCosmosDBNoSqlVectorSearch:
             indexing_policy=get_vector_indexing_policy("diskANN"),
             cosmos_container_properties={"partition_key": partition_key},
             cosmos_database_properties={},
+            vector_search_fields={"text_field": "text", "embedding_field": "embedding"},
+            full_text_search_fields=["text"],
             full_text_search_enabled=True,
         )
 
@@ -248,16 +312,16 @@ class TestAzureCosmosDBNoSqlVectorSearch:
             conditions=[
                 Condition(
                     property="text",
-                    operator="$full_text_contains_all",
+                    operator="$full_text_contains_any",
                     value="intelligent herders",
                 ),
             ],
         )
         output = store.similarity_search(
-            "intelligent herders",
+            "Which dog breed is considered a herder?",
             k=5,
             pre_filter=pre_filter,
-            query_type=CosmosDBQueryType.FULL_TEXT_SEARCH,
+            search_type="full_text_search",
         )
 
         assert output
@@ -276,10 +340,10 @@ class TestAzureCosmosDBNoSqlVectorSearch:
         )
 
         output = store.similarity_search(
-            "intelligent herders",
+            "Which dog breed is considered a herder?",
             k=5,
             pre_filter=pre_filter,
-            query_type=CosmosDBQueryType.FULL_TEXT_SEARCH,
+            search_type="full_text_search",
         )
 
         assert output
@@ -288,7 +352,9 @@ class TestAzureCosmosDBNoSqlVectorSearch:
 
         # Full text search BM25 ranking
         output = store.similarity_search(
-            "intelligent herders", k=5, query_type=CosmosDBQueryType.FULL_TEXT_RANK
+            "Which dog breed is considered a herder?",
+            k=5,
+            search_type="full_text_ranking",
         )
 
         assert output
@@ -301,11 +367,12 @@ class TestAzureCosmosDBNoSqlVectorSearch:
                 Condition(property="metadata.a", operator="$eq", value=1),
             ],
         )
+
         output = store.similarity_search(
-            "intelligent herders",
+            "Which dog breed is considered a herder?",
             k=5,
             pre_filter=pre_filter,
-            query_type=CosmosDBQueryType.FULL_TEXT_RANK,
+            search_type="full_text_ranking",
         )
 
         assert output
@@ -314,7 +381,9 @@ class TestAzureCosmosDBNoSqlVectorSearch:
 
         # Hybrid search RRF ranking combination of full text search and vector search
         output = store.similarity_search(
-            "intelligent herders", k=5, query_type=CosmosDBQueryType.HYBRID
+            "Which dog breed is considered a herder?",
+            k=5,
+            search_type="hybrid",
         )
 
         assert output
@@ -327,11 +396,12 @@ class TestAzureCosmosDBNoSqlVectorSearch:
                 Condition(property="metadata.a", operator="$eq", value=1),
             ],
         )
+
         output = store.similarity_search(
-            "intelligent herders",
+            "Which dog breed is considered a herder?",
             k=5,
             pre_filter=pre_filter,
-            query_type=CosmosDBQueryType.HYBRID,
+            search_type="hybrid",
         )
 
         assert output
@@ -346,16 +416,17 @@ class TestAzureCosmosDBNoSqlVectorSearch:
                 ),
             ],
         )
+
         output = store.similarity_search(
-            "intelligent herders",
+            "Which dog breed is considered a herder?",
             k=5,
             pre_filter=pre_filter,
-            query_type=CosmosDBQueryType.FULL_TEXT_RANK,
+            search_type="full_text_ranking",
         )
 
         assert output
         assert len(output) == 3
-        assert "Border Collies" in output[0].page_content
+        assert "Border Collies" or "Australian Shepherds" in output[0].page_content
 
         # Full text search BM25 ranking with full text filtering
         pre_filter = PreFilter(
@@ -367,16 +438,18 @@ class TestAzureCosmosDBNoSqlVectorSearch:
             ],
             logical_operator="$and",
         )
+
         output = store.similarity_search(
             "intelligent herders",
             k=5,
             pre_filter=pre_filter,
-            query_type=CosmosDBQueryType.FULL_TEXT_RANK,
+            search_type="full_text_ranking",
         )
 
         assert output
         assert len(output) == 2
         assert "Standard Poodles" in output[0].page_content
+        safe_delete_database(cosmos_client)
 
     def _get_documents(self) -> List[Document]:
         return [

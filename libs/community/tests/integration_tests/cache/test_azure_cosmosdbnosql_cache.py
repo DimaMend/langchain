@@ -1,6 +1,6 @@
 """Test` Azure CosmosDB NoSql cache functionality."""
 
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 from langchain.globals import get_llm_cache, set_llm_cache
@@ -51,12 +51,9 @@ def vector_embedding_policy(distance_function: str) -> dict:
     }
 
 
-cosmos_container_properties_test = {"partition_key": partition_key}
-cosmos_database_properties_test: Dict[str, Any] = {}
-
-
 def test_azure_cosmos_db_nosql_semantic_cache_cosine_quantizedflat(
     cosmos_client: Any,
+    partition_key: Any,
 ) -> None:
     set_llm_cache(
         AzureCosmosDBNoSqlSemanticCache(
@@ -64,8 +61,10 @@ def test_azure_cosmos_db_nosql_semantic_cache_cosine_quantizedflat(
             embedding=FakeEmbeddings(),
             vector_embedding_policy=vector_embedding_policy("cosine"),
             indexing_policy=indexing_policy("quantizedFlat"),
-            cosmos_container_properties=cosmos_container_properties_test,
-            cosmos_database_properties=cosmos_database_properties_test,
+            cosmos_container_properties={"partition_key": partition_key},
+            cosmos_database_properties={},
+            vector_search_fields={"text_field": "text", "embedding_field": "embedding"},
+            full_text_search_fields=["text"],
         )
     )
 
@@ -83,17 +82,20 @@ def test_azure_cosmos_db_nosql_semantic_cache_cosine_quantizedflat(
     get_llm_cache().clear(llm_string=llm_string)
 
 
-def test_azure_cosmos_db_nosql_semantic_cache_cosine_flat(
+def test_azure_cosmos_db_nosql_semantic_cache_cosine_disk_ann(
     cosmos_client: Any,
+    partition_key: Any,
 ) -> None:
     set_llm_cache(
         AzureCosmosDBNoSqlSemanticCache(
             cosmos_client=cosmos_client,
             embedding=FakeEmbeddings(),
             vector_embedding_policy=vector_embedding_policy("cosine"),
-            indexing_policy=indexing_policy("flat"),
-            cosmos_container_properties=cosmos_container_properties_test,
-            cosmos_database_properties=cosmos_database_properties_test,
+            indexing_policy=indexing_policy("diskANN"),
+            cosmos_container_properties={"partition_key": partition_key},
+            cosmos_database_properties={},
+            vector_search_fields={"text_field": "text", "embedding_field": "embedding"},
+            full_text_search_fields=["text"],
         )
     )
 
@@ -113,15 +115,18 @@ def test_azure_cosmos_db_nosql_semantic_cache_cosine_flat(
 
 def test_azure_cosmos_db_nosql_semantic_cache_dotproduct_quantizedflat(
     cosmos_client: Any,
+    partition_key: Any,
 ) -> None:
     set_llm_cache(
         AzureCosmosDBNoSqlSemanticCache(
             cosmos_client=cosmos_client,
             embedding=FakeEmbeddings(),
-            vector_embedding_policy=vector_embedding_policy("dotProduct"),
+            vector_embedding_policy=vector_embedding_policy("dotproduct"),
             indexing_policy=indexing_policy("quantizedFlat"),
-            cosmos_container_properties=cosmos_container_properties_test,
-            cosmos_database_properties=cosmos_database_properties_test,
+            cosmos_container_properties={"partition_key": partition_key},
+            cosmos_database_properties={},
+            vector_search_fields={"text_field": "text", "embedding_field": "embedding"},
+            full_text_search_fields=["text"],
         )
     )
 
@@ -141,17 +146,20 @@ def test_azure_cosmos_db_nosql_semantic_cache_dotproduct_quantizedflat(
     get_llm_cache().clear(llm_string=llm_string)
 
 
-def test_azure_cosmos_db_nosql_semantic_cache_dotproduct_flat(
+def test_azure_cosmos_db_nosql_semantic_cache_dotproduct_disk_ann(
     cosmos_client: Any,
+    partition_key: Any,
 ) -> None:
     set_llm_cache(
         AzureCosmosDBNoSqlSemanticCache(
             cosmos_client=cosmos_client,
             embedding=FakeEmbeddings(),
-            vector_embedding_policy=vector_embedding_policy("dotProduct"),
-            indexing_policy=indexing_policy("flat"),
-            cosmos_container_properties=cosmos_container_properties_test,
-            cosmos_database_properties=cosmos_database_properties_test,
+            vector_embedding_policy=vector_embedding_policy("dotproduct"),
+            indexing_policy=indexing_policy("diskANN"),
+            cosmos_container_properties={"partition_key": partition_key},
+            cosmos_database_properties={},
+            vector_search_fields={"text_field": "text", "embedding_field": "embedding"},
+            full_text_search_fields=["text"],
         )
     )
 
@@ -173,6 +181,7 @@ def test_azure_cosmos_db_nosql_semantic_cache_dotproduct_flat(
 
 def test_azure_cosmos_db_nosql_semantic_cache_euclidean_quantizedflat(
     cosmos_client: Any,
+    partition_key: Any,
 ) -> None:
     set_llm_cache(
         AzureCosmosDBNoSqlSemanticCache(
@@ -180,8 +189,10 @@ def test_azure_cosmos_db_nosql_semantic_cache_euclidean_quantizedflat(
             embedding=FakeEmbeddings(),
             vector_embedding_policy=vector_embedding_policy("euclidean"),
             indexing_policy=indexing_policy("quantizedFlat"),
-            cosmos_container_properties=cosmos_container_properties_test,
-            cosmos_database_properties=cosmos_database_properties_test,
+            cosmos_container_properties={"partition_key": partition_key},
+            cosmos_database_properties={},
+            vector_search_fields={"text_field": "text", "embedding_field": "embedding"},
+            full_text_search_fields=["text"],
         )
     )
 
@@ -199,17 +210,20 @@ def test_azure_cosmos_db_nosql_semantic_cache_euclidean_quantizedflat(
     get_llm_cache().clear(llm_string=llm_string)
 
 
-def test_azure_cosmos_db_nosql_semantic_cache_euclidean_flat(
+def test_azure_cosmos_db_nosql_semantic_cache_euclidean_disk_ann(
     cosmos_client: Any,
+    partition_key: Any,
 ) -> None:
     set_llm_cache(
         AzureCosmosDBNoSqlSemanticCache(
             cosmos_client=cosmos_client,
             embedding=FakeEmbeddings(),
             vector_embedding_policy=vector_embedding_policy("euclidean"),
-            indexing_policy=indexing_policy("flat"),
-            cosmos_container_properties=cosmos_container_properties_test,
-            cosmos_database_properties=cosmos_database_properties_test,
+            indexing_policy=indexing_policy("diskANN"),
+            cosmos_container_properties={"partition_key": partition_key},
+            cosmos_database_properties={},
+            vector_search_fields={"text_field": "text", "embedding_field": "embedding"},
+            full_text_search_fields=["text"],
         )
     )
 
