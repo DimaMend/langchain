@@ -814,8 +814,8 @@ class AzureCosmosDBNoSqlVectorSearch(VectorStore):
             )
         )
         for item in items:
-            text = item[self._text_key]
-            metadata = item.pop(self._metadata_key, {})
+            text = item["text"]
+            metadata = item.pop("metadata", {})
             score = 0.0
 
             if projection_mapping:
@@ -835,7 +835,7 @@ class AzureCosmosDBNoSqlVectorSearch(VectorStore):
                     metadata[self._embedding_key] = item[self._embedding_key]
             docs_and_scores.append(
                 (
-                    Document(page_content=text, metadata=metadata),
+                    Document(id=item["id"], page_content=text, metadata=metadata),
                     score,
                 )
             )
